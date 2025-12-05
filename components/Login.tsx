@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { auth, db } from '../firebase';
 import { UserProfile, Address } from '../types';
-import { Mail, Lock, User, AlertCircle, MapPin, Navigation, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Mail, Lock, User, AlertCircle, MapPin, ArrowLeft } from 'lucide-react';
+import { MapPicker } from './MapPicker';
 
 interface LoginProps {
   onLoginSuccess: (user?: UserProfile) => void;
@@ -21,44 +23,15 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [addressHouse, setAddressHouse] = useState('');
   const [addressLandmark, setAddressLandmark] = useState('');
   const [addressCoords, setAddressCoords] = useState<{lat: number, lng: number} | null>(null);
-  const [locationLoading, setLocationLoading] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-        setError("Geolocation is not supported by your browser");
-        return;
-    }
-
-    setLocationLoading(true);
-    setError('');
-    
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const { latitude, longitude } = position.coords;
-            setAddressCoords({ lat: latitude, lng: longitude });
-            
-            // Mock Reverse Geocode
-            setTimeout(() => {
-                setAddressArea(`Sector ${Math.floor(Math.random() * 20) + 1}, Detected Locality`);
-                setAddressLandmark('Near Current Location');
-                setLocationLoading(false);
-            }, 1000);
-        },
-        (error) => {
-            console.error("Error getting location", error.message);
-            let msg = "Unable to retrieve your location.";
-            if (error.code === 1) msg = "Location permission denied.";
-            else if (error.code === 2) msg = "Location unavailable.";
-            else if (error.code === 3) msg = "Location request timed out.";
-            
-            setError(msg);
-            setLocationLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+  const handleLocationSelect = (lat: number, lng: number, addr: { area: string, house: string, landmark: string, fullAddress: string }) => {
+      setAddressCoords({ lat, lng });
+      setAddressArea(addr.area);
+      if(addr.house) setAddressHouse(addr.house);
+      if(addr.landmark) setAddressLandmark(addr.landmark);
   };
 
   const handleNextStep = (e: React.FormEvent) => {
@@ -184,23 +157,17 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const renderStep2 = () => (
       <div className="space-y-4 animate-in slide-in-from-right duration-300">
-          <div className="flex items-center gap-2 mb-2 text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 p-3 rounded-lg border border-purple-100 dark:border-purple-900/50">
+          <div className="flex items-center gap-2 mb-1 text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 p-2 rounded-lg border border-purple-100 dark:border-purple-900/50">
               <MapPin className="w-5 h-5" />
-              <span className="text-sm font-bold">Where should we deliver?</span>
+              <span className="text-sm font-bold">Set Delivery Location</span>
           </div>
           
-          <button 
-                type="button"
-                onClick={handleLocateMe}
-                className="w-full py-3 px-4 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 font-bold flex items-center justify-center gap-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition shadow-sm"
-            >
-                {locationLoading ? (
-                        <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                        <Navigation className="w-4 h-4" /> 
-                )}
-                Use Current Location
-            </button>
+          <div className="h-48 w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+              <MapPicker 
+                height="100%" 
+                onLocationSelect={handleLocationSelect}
+              />
+          </div>
 
             <div className="relative">
                 <input
@@ -267,7 +234,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </h1>
             <p className="text-gray-500 dark:text-gray-400 font-medium">
                 {isSignUp 
-                    ? (step === 1 ? 'Create an account to start ordering' : 'Almost there! Add delivery details') 
+                    ? (step === 1 ? 'Create an account to start ordering' : 'Pin your delivery location') 
                     : 'Login to access your foodie universe'
                 }
             </p>
