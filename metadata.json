@@ -1,0 +1,7 @@
+{
+  "name": "TEST OrderEat-UserPanel",
+  "description": "A food delivery user interface integrated with Firebase Realtime Database.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
