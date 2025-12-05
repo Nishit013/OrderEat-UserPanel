@@ -21,8 +21,7 @@ export default defineConfig(({ mode }) => {
         }
       }
     };
-<<<<<<< HEAD
+
 });
-=======
-});
->>>>>>> 4d8ee1100feca942fa6ccf70db6f36c9797fac8d
+
+
