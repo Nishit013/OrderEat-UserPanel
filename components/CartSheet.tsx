@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { X, Clock, MapPin, ChevronRight, Percent, Plus, Minus, Map, Navigation, Trash2, CheckCircle2, CreditCard, Banknote } from 'lucide-react';
 import { CartItem, Coupon, Address, UserProfile, AdminSettings, BillDetails } from '../types';
 import { db } from '../firebase';
+import { MapPicker } from './MapPicker';
 
 interface CartSheetProps {
   isOpen: boolean;
@@ -44,8 +46,6 @@ export const CartSheet: React.FC<CartSheetProps> = ({
 
   // Address Modal States
   const [tempAddress, setTempAddress] = useState({ house: '', landmark: '', area: '' });
-  const [mapDragging, setMapDragging] = useState(false);
-  const [locationLoading, setLocationLoading] = useState(false);
   const [pinCoords, setPinCoords] = useState<{lat: number, lng: number} | null>(null);
 
   // Payment State
@@ -156,39 +156,14 @@ export const CartSheet: React.FC<CartSheetProps> = ({
       setShowSavedAddresses(false);
   };
 
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser");
-        return;
-    }
-
-    setLocationLoading(true);
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const { latitude, longitude } = position.coords;
-            setPinCoords({ lat: latitude, lng: longitude });
-            
-            setTimeout(() => {
-                setTempAddress(prev => ({
-                    ...prev,
-                    area: `Sector ${Math.floor(Math.random() * 20) + 1}, Detected Locality`,
-                    landmark: 'Near Current Location'
-                }));
-                setLocationLoading(false);
-            }, 1000);
-        },
-        (error) => {
-            console.error("Error getting location", error.message);
-            let msg = "Unable to retrieve your location.";
-            if (error.code === 1) msg = "Location permission denied. Please enable it in your browser settings.";
-            else if (error.code === 2) msg = "Location unavailable.";
-            else if (error.code === 3) msg = "Location request timed out.";
-            
-            alert(msg);
-            setLocationLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+  const handleLocationSelect = (lat: number, lng: number, addr: { area: string, house: string, landmark: string, fullAddress: string }) => {
+      setPinCoords({ lat, lng });
+      setTempAddress(prev => ({
+          ...prev,
+          area: addr.area,
+          house: addr.house || prev.house, // Preserve existing if map doesn't return precision
+          landmark: addr.landmark || prev.landmark
+      }));
   };
 
   const handleAddressConfirm = async () => {
@@ -641,47 +616,17 @@ export const CartSheet: React.FC<CartSheetProps> = ({
         {/* --- ADD NEW ADDRESS MAP MODAL --- */}
         {showAddressModal && (
             <div className="absolute inset-0 bg-white dark:bg-gray-900 z-[70] flex flex-col animate-in slide-in-from-bottom duration-300">
-                <div className="relative h-3/5 sm:h-2/3 bg-gray-100 dark:bg-gray-800 overflow-hidden group">
-                    <img 
-                        src="https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
-                        alt="Map"
-                        className={`w-full h-full object-cover transition-transform duration-200 cursor-move ${mapDragging ? 'scale-110' : 'scale-100'}`}
-                        style={{ objectPosition: mapDragging ? '50% 60%' : '50% 50%' }}
-                        onMouseDown={() => setMapDragging(true)}
-                        onMouseUp={() => setMapDragging(false)}
-                        onMouseLeave={() => setMapDragging(false)}
-                        onTouchStart={() => setMapDragging(true)}
-                        onTouchEnd={() => setMapDragging(false)}
+                <div className="relative h-3/5 sm:h-2/3 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                    <MapPicker 
+                        height="100%" 
+                        onLocationSelect={handleLocationSelect}
                     />
-                    <div className="absolute inset-0 bg-black/5 pointer-events-none" />
                     
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 pointer-events-none">
-                        <div className="relative animate-bounce">
-                            <MapPin className="w-10 h-10 text-purple-600 drop-shadow-lg fill-purple-600" />
-                            <div className="absolute w-2 h-2 bg-black/30 rounded-full blur-[2px] bottom-0 left-1/2 -translate-x-1/2 translate-y-1"></div>
-                        </div>
-                        <div className="bg-white px-3 py-1 rounded-full shadow-lg text-xs font-bold mt-2 whitespace-nowrap">
-                            {mapDragging ? 'Adjusting location...' : 'Order will be delivered here'}
-                        </div>
-                    </div>
-
                     <button 
                         className="absolute top-4 left-4 bg-white p-2 rounded-full shadow-md z-20 hover:bg-gray-100"
                         onClick={() => setShowAddressModal(false)}
                     >
                         <X className="w-5 h-5 text-gray-600" />
-                    </button>
-                    
-                    <button 
-                        onClick={handleLocateMe}
-                        className="absolute bottom-6 right-6 bg-white py-2 px-3 sm:py-3 sm:px-4 rounded-full shadow-xl z-20 flex items-center gap-2 font-bold text-xs text-purple-600 hover:scale-105 transition active:scale-95"
-                    >
-                        {locationLoading ? (
-                             <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                             <Navigation className="w-4 h-4" /> 
-                        )}
-                        Use Current Location
                     </button>
                 </div>
 

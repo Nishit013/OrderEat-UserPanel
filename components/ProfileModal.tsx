@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { X, MapPin, Package, LogOut, User, Plus, Trash2, Navigation, Edit2, Save, Moon, Sun, ChevronRight } from 'lucide-react';
 import { UserProfile, Address } from '../types';
 import { db } from '../firebase';
+import { MapPicker } from './MapPicker';
 
 interface ProfileModalProps {
   user: UserProfile;
@@ -19,7 +21,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onLog
   const [editPhone, setEditPhone] = useState(user.phone || '');
   
   const [tempAddress, setTempAddress] = useState({ house: '', landmark: '', area: '' });
-  const [locationLoading, setLocationLoading] = useState(false);
+  const [pinCoords, setPinCoords] = useState<{lat: number, lng: number} | null>(null);
 
   const handleUpdateProfile = async () => {
     try {
@@ -47,28 +49,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onLog
     }
   };
 
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-        alert("Geolocation not supported");
-        return;
-    }
-    setLocationLoading(true);
-    navigator.geolocation.getCurrentPosition(
-        () => {
-            setTimeout(() => {
-                setTempAddress(prev => ({
-                    ...prev,
-                    area: `Sector ${Math.floor(Math.random() * 50)}, New Locality`,
-                    landmark: 'Near My Location'
-                }));
-                setLocationLoading(false);
-            }, 1000);
-        },
-        () => {
-            alert("Could not fetch location");
-            setLocationLoading(false);
-        }
-    );
+  const handleLocationSelect = (lat: number, lng: number, addr: { area: string, house: string, landmark: string, fullAddress: string }) => {
+      setPinCoords({ lat, lng });
+      setTempAddress(prev => ({
+          ...prev,
+          area: addr.area,
+          house: addr.house || prev.house,
+          landmark: addr.landmark || prev.landmark
+      }));
   };
 
   const handleSaveAddress = async () => {
@@ -82,8 +70,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onLog
           houseNo: tempAddress.house,
           area: tempAddress.area,
           landmark: tempAddress.landmark,
-          lat: 28.6139, 
-          lng: 77.2090  
+          lat: pinCoords?.lat || 28.6139, 
+          lng: pinCoords?.lng || 77.2090  
       };
       const currentAddresses = user.addresses || [];
       const updatedAddresses = [...currentAddresses, newAddr];
@@ -201,12 +189,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onLog
                     <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl shadow-lg border border-purple-100 dark:border-purple-900 mb-6 animate-in slide-in-from-top-4">
                         <h4 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">New Address Details</h4>
                         <div className="space-y-4">
-                             <button 
-                                onClick={handleLocateMe}
-                                className="w-full py-2.5 px-3 rounded-xl border border-dashed border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition"
-                            >
-                                {locationLoading ? 'Locating...' : <><Navigation className="w-4 h-4" /> Detect Current Location</>}
-                            </button>
+                             {/* Map Picker Container */}
+                             <div className="h-40 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                                 <MapPicker 
+                                    height="100%" 
+                                    onLocationSelect={handleLocationSelect}
+                                 />
+                             </div>
+
                             <div className="grid grid-cols-2 gap-3">
                                 <input 
                                     type="text" 

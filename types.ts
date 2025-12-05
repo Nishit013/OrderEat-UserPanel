@@ -1,4 +1,12 @@
 
+// Add global google definition
+declare global {
+  interface Window {
+    Razorpay: any;
+    google: any;
+  }
+}
+
 export interface Variant {
   name: string;
   price: number;
@@ -33,6 +41,7 @@ export interface Restaurant {
   lng?: number;
   isOnline?: boolean; // True = Open, False = Closed/Offline
   isApproved?: boolean; // True = Visible in User Panel
+  offers?: Coupon[];
 }
 
 export interface CartItem extends MenuItem {
@@ -126,6 +135,7 @@ export interface Order {
   status: OrderStatus;
   createdAt: number;
   deliveryAddress: string; // snapshot of address string
+  deliveryCoordinates?: { lat: number; lng: number }; // For delivery partner navigation
   deliveryPartner?: DeliveryPartner;
   paymentMethod: 'COD' | 'ONLINE';
   paymentId?: string; // Razorpay Payment ID
