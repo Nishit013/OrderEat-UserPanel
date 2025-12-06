@@ -52,6 +52,18 @@ export const CartSheet: React.FC<CartSheetProps> = ({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
 
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   // Filter valid coupons based on First Order, Restaurant, and Category logic
   const validCoupons = coupons.filter(coupon => {
       // 1. First Order Check
@@ -76,18 +88,20 @@ export const CartSheet: React.FC<CartSheetProps> = ({
   });
 
   // Calculations based on Admin Settings
-  // Logic: Base fee for first 2km, then per km charge for additional distance
+  
+  // Rule: Below 199 charge fees, Above 199 free
+  const deliveryThreshold = adminSettings.freeDeliveryOrderValue ?? 199;
+  const isFreeDelivery = totalAmount >= deliveryThreshold;
+
+  // Rule: Distance Calculation
+  // First 2km = Base Fee
+  // After 2km = Base Fee + (Extra * Per Km)
   const additionalDistance = Math.max(0, deliveryDistance - 2);
-  const originalDeliveryFee = Math.round(
+  const calculatedDeliveryFee = Math.round(
       adminSettings.deliveryBaseFee + (additionalDistance * adminSettings.deliveryPerKm)
   );
 
-  let deliveryFee = originalDeliveryFee;
-  const isFreeDelivery = adminSettings.freeDeliveryOrderValue !== undefined && totalAmount >= adminSettings.freeDeliveryOrderValue;
-
-  if (isFreeDelivery) {
-      deliveryFee = 0;
-  }
+  const deliveryFee = isFreeDelivery ? 0 : calculatedDeliveryFee;
   
   const taxes = Math.round(totalAmount * (adminSettings.taxRate / 100));
   
@@ -247,7 +261,7 @@ export const CartSheet: React.FC<CartSheetProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end font-sans">
+    <div className="fixed inset-0 z-[70] flex justify-end font-sans h-[100dvh]">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
       
       <div className="relative w-full md:max-w-md bg-gray-50 dark:bg-gray-950 h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
@@ -395,7 +409,7 @@ export const CartSheet: React.FC<CartSheetProps> = ({
                         <span>
                             {isFreeDelivery ? (
                                 <>
-                                    <span className="line-through text-xs mr-2 opacity-60">₹{originalDeliveryFee}</span>
+                                    <span className="line-through text-xs mr-2 opacity-60">₹{calculatedDeliveryFee}</span>
                                     <span className="text-green-600 font-bold">FREE</span>
                                 </>
                             ) : (

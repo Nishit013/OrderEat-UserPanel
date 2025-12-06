@@ -1,9 +1,9 @@
 
-// Add global google definition
+// Add global definitions
 declare global {
   interface Window {
     Razorpay: any;
-    google: any;
+    L: any;
   }
 }
 

@@ -10,78 +10,89 @@ interface MapPickerProps {
 }
 
 export const MapPicker: React.FC<MapPickerProps> = ({ initialLat = 28.6139, initialLng = 77.2090, onLocationSelect, height = "100%" }) => {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<any>(null);
-  const [marker, setMarker] = useState<any>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null); // Leaflet Map Instance
+  const markerRef = useRef<any>(null); // Leaflet Marker Instance
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!window.google || !mapRef.current) return;
+    if (!window.L || !mapContainerRef.current) return;
 
-    const initialPos = { lat: initialLat, lng: initialLng };
-    const mapInstance = new window.google.maps.Map(mapRef.current, {
-      center: initialPos,
-      zoom: 15,
-      disableDefaultUI: true,
-      zoomControl: true,
-      gestureHandling: "greedy" // Better for mobile touch
+    // Prevent re-initialization
+    if (mapRef.current) return;
+
+    // 1. Initialize Map
+    const map = window.L.map(mapContainerRef.current).setView([initialLat, initialLng], 15);
+    mapRef.current = map;
+
+    // 2. Add OpenStreetMap Tile Layer
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // 3. Fix Marker Icon (Common Leaflet Issue)
+    const icon = window.L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
     });
 
-    const markerInstance = new window.google.maps.Marker({
-      position: initialPos,
-      map: mapInstance,
-      draggable: true,
-      animation: window.google.maps.Animation.DROP,
+    // 4. Add Draggable Marker
+    const marker = window.L.marker([initialLat, initialLng], {
+        draggable: true,
+        icon: icon
+    }).addTo(map);
+    markerRef.current = marker;
+
+    // 5. Handle Drag End
+    marker.on('dragend', function(event: any) {
+        const position = marker.getLatLng();
+        handleGeocode(position.lat, position.lng);
     });
 
-    setMap(mapInstance);
-    setMarker(markerInstance);
-
-    // Event Listener for Drag End
-    markerInstance.addListener("dragend", () => {
-        const position = markerInstance.getPosition();
-        if(position) {
-            handleGeocode(position.lat(), position.lng());
-        }
-    });
-    
-    // Initial Geocode
+    // Initial Geocode to trigger address update
     handleGeocode(initialLat, initialLng);
 
+    // Cleanup on unmount
+    return () => {
+        if (mapRef.current) {
+            mapRef.current.remove();
+            mapRef.current = null;
+        }
+    };
   }, []);
 
-  const handleGeocode = (lat: number, lng: number) => {
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
-          if (status === "OK" && results[0]) {
-              const addressComponents = results[0].address_components;
-              let area = '';
-              let house = '';
-              let landmark = '';
+  const handleGeocode = async (lat: number, lng: number) => {
+      try {
+          // Use OpenStreetMap Nominatim API for Reverse Geocoding
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+              headers: {
+                  'User-Agent': 'OrderEat-FoodDeliveryApp/1.0'
+              }
+          });
+          const data = await response.json();
+          
+          if (data && data.address) {
+              const addr = data.address;
               
-              // Extract logic similar to common Indian addresses
-              addressComponents.forEach((component: any) => {
-                  if (component.types.includes("sublocality") || component.types.includes("neighborhood")) {
-                      area = component.long_name;
-                  }
-                  if (component.types.includes("premise") || component.types.includes("street_number")) {
-                      house = component.long_name;
-                  }
-                  if (component.types.includes("point_of_interest") || component.types.includes("landmark")) {
-                      landmark = component.long_name;
-                  }
-              });
-
-              if (!area) area = results[0].formatted_address.split(',')[1]?.trim() || results[0].formatted_address;
+              const area = addr.suburb || addr.neighbourhood || addr.residential || addr.city_district || addr.city || '';
+              const house = addr.house_number || addr.building || '';
+              const landmark = addr.amenity || addr.shop || addr.tourism || '';
               
               onLocationSelect(lat, lng, {
                   area,
                   house,
                   landmark,
-                  fullAddress: results[0].formatted_address
+                  fullAddress: data.display_name
               });
           }
-      });
+      } catch (error) {
+          console.error("Geocoding failed", error);
+      }
   };
 
   const handleCurrentLocation = () => {
@@ -94,11 +105,11 @@ export const MapPicker: React.FC<MapPickerProps> = ({ initialLat = 28.6139, init
     navigator.geolocation.getCurrentPosition(
         (position) => {
             const { latitude, longitude } = position.coords;
-            if (map && marker) {
-                const pos = new window.google.maps.LatLng(latitude, longitude);
-                map.setCenter(pos);
-                marker.setPosition(pos);
-                map.setZoom(17);
+            
+            if (mapRef.current && markerRef.current) {
+                const newLatLng = new window.L.LatLng(latitude, longitude);
+                mapRef.current.setView(newLatLng, 17);
+                markerRef.current.setLatLng(newLatLng);
                 handleGeocode(latitude, longitude);
             }
             setLoading(false);
@@ -114,11 +125,11 @@ export const MapPicker: React.FC<MapPickerProps> = ({ initialLat = 28.6139, init
 
   return (
     <div className="relative w-full overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800" style={{ height }}>
-        <div ref={mapRef} className="w-full h-full" />
+        <div ref={mapContainerRef} className="w-full h-full z-0" />
         
         <button 
             onClick={handleCurrentLocation}
-            className="absolute bottom-4 right-4 bg-white dark:bg-gray-900 text-purple-600 dark:text-purple-400 p-3 rounded-full shadow-lg border border-gray-100 dark:border-gray-700 hover:scale-105 transition active:scale-95"
+            className="absolute bottom-4 right-4 z-[400] bg-white dark:bg-gray-900 text-purple-600 dark:text-purple-400 p-3 rounded-full shadow-lg border border-gray-100 dark:border-gray-700 hover:scale-105 transition active:scale-95"
             title="Use Current Location"
         >
             {loading ? (
@@ -128,7 +139,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({ initialLat = 28.6139, init
             )}
         </button>
         
-        <div className="absolute top-4 left-4 bg-white/90 dark:bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold shadow-md border border-gray-200 dark:border-gray-700 pointer-events-none flex items-center gap-2">
+        <div className="absolute top-4 left-4 z-[400] bg-white/90 dark:bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold shadow-md border border-gray-200 dark:border-gray-700 pointer-events-none flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5 text-red-500" />
             Drag pin to adjust location
         </div>

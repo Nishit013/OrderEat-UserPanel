@@ -219,7 +219,8 @@ function App() {
       taxRate: 5,
       deliveryBaseFee: 40,
       deliveryPerKm: 10,
-      platformCommission: 20
+      platformCommission: 20,
+      freeDeliveryOrderValue: 199 // Default to 199 as per request
   });
 
   // Inspiration State
@@ -518,6 +519,12 @@ function App() {
   const handlePlaceOrder = async (billDetails: BillDetails, addressStr: string, paymentMethod: 'COD' | 'ONLINE', paymentId?: string) => {
     if (!user) { setShowLogin(true); return; }
     
+    // Get Coordinates for delivery address (if possible from user location state as it's active)
+    let deliveryCoords = undefined;
+    if (userLocation.lat && userLocation.lng) {
+        deliveryCoords = { lat: userLocation.lat, lng: userLocation.lng };
+    }
+
     const orderData = {
       userId: user.uid,
       restaurantId: cart[0].restaurantId,
@@ -528,6 +535,7 @@ function App() {
       status: OrderStatus.PLACED,
       createdAt: Date.now(),
       deliveryAddress: addressStr,
+      deliveryCoordinates: deliveryCoords,
       paymentMethod,
       paymentId: paymentId || null
     };
@@ -584,8 +592,8 @@ function App() {
       }
       return { ...r, distance: 0 };
   }).filter(r => {
-      // 1. Distance (6km)
-      if (r.distance > 6) return false;
+      // 1. Distance (5km) - Updated per request
+      if (r.distance > 5 && !searchQuery) return false;
 
       // 2. Search
       if (searchQuery) {
